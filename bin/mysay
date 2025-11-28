@@ -214,7 +214,7 @@ if [ -n "$SHEET_ID" ] && [ -f "$SA_FILE" ]; then
   python3 - "$SA_FILE" "$SHEET_ID" "$TEXT" "$VOICE_ID" "$EMOJI" << 'PYEOF' &
 import sys, gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime
+from datetime import datetime, timezone
 sa_file, sheet_id, text, voice_id, mood = sys.argv[1:6]
 try:
     creds = Credentials.from_service_account_file(sa_file, scopes=['https://www.googleapis.com/auth/spreadsheets'])
@@ -223,7 +223,7 @@ try:
     ws = sh.sheet1
     if ws.row_count == 0 or ws.acell('A1').value is None:
         ws.append_row(['Timestamp', 'Text', 'Voice ID', 'Mood', 'Audio URL', 'Rating', 'Notes'])
-    ws.append_row([datetime.utcnow().isoformat(), text, voice_id, mood, '', '', ''])
+    ws.append_row([datetime.now(timezone.utc).isoformat(), text, voice_id, mood, '', '', ''])
 except Exception:
     pass  # Silent fail - don't block TTS
 PYEOF
