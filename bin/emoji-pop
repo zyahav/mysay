@@ -1,0 +1,24 @@
+#!/bin/bash
+# emoji-pop - Floating emoji screen overlay (Zoom-style reactions)
+# Part of mysay project
+#
+# Usage: emoji-pop [emoji] [count] [duration]
+#   emoji    - The emoji to display (default: ❤️)
+#   count    - Number of emojis (default: 15)
+#   duration - Animation duration in seconds (default: 3)
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OVERLAY_DIR="$SCRIPT_DIR/../emoji-overlay"
+
+EMOJI="${1:-❤️}"
+COUNT="${2:-15}"
+DURATION="${3:-3}"
+
+# Check if emoji-overlay is installed
+if [ ! -d "$OVERLAY_DIR/node_modules" ]; then
+  echo "⚠️  emoji-overlay not installed. Run: cd $OVERLAY_DIR && npm install"
+  exit 0  # Don't fail - emoji is optional
+fi
+
+# Run electron in background (non-blocking)
+cd "$OVERLAY_DIR" && npx electron . "$EMOJI" "$COUNT" "$DURATION" &>/dev/null &

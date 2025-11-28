@@ -1,0 +1,18 @@
+{
+  "name": "emoji-overlay",
+  "version": "1.0.0",
+  "description": "Floating emoji screen overlay for mysay (Zoom-style reactions)",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "test:hearts": "electron . ❤️ 15 3",
+    "test:fire": "electron . 🔥 15 3",
+    "test:party": "electron . 🎉 20 4"
+  },
+  "keywords": ["emoji", "overlay", "tts", "mysay"],
+  "author": "Zuriel",
+  "license": "MIT",
+  "dependencies": {
+    "electron": "^28.0.0"
+  }
+}

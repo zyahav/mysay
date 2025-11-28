@@ -1,0 +1,35 @@
+# mysay Configuration
+# Copy to ~/.mysay or ~/.config/mysay/config
+
+# ============================================================================
+# REQUIRED - ElevenLabs API Key
+# ============================================================================
+# Get your API key from: https://elevenlabs.io/app/settings/api-keys
+ELEVENLABS_API_KEY="sk_your_api_key_here"
+
+# ============================================================================
+# OPTIONAL - Voice IDs
+# ============================================================================
+# Default voices are pre-configured, but you can override with your own.
+# Find voice IDs in ElevenLabs: https://elevenlabs.io/app/voice-library
+#
+# VOICE_DONE="your-voice-id"       # 🎉 Task complete
+# VOICE_QUESTION="your-voice-id"   # ❓ Need help
+# VOICE_START="your-voice-id"      # 🚀 Starting work
+# VOICE_ERROR="your-voice-id"      # 🐛 Error/problem
+# VOICE_IDEA="your-voice-id"       # 💡 Suggestion
+# VOICE_HI="your-voice-id"         # 👋 Greeting
+# VOICE_HEBREW="your-voice-id"     # 🇮🇱 Default Hebrew
+# VOICE_ENGLISH="your-voice-id"    # 🇺🇸 Default English
+
+# ============================================================================
+# OPTIONAL - Google Sheets Logging (for TTS quality evaluation)
+# ============================================================================
+# MYSAY_SHEET_ID="your-google-sheet-id"
+# MYSAY_SA_FILE="$HOME/.config/mysay/google-sheets-sa.json"
+
+# ============================================================================
+# OPTIONAL - Model Selection
+# ============================================================================
+# Default is eleven_v3 (best for Hebrew + emotions)
+# MODEL_ID="eleven_v3"
