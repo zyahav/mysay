@@ -123,6 +123,11 @@ if [ -z "$TEXT" ]; then
   exit 1
 fi
 
+ORIGINAL_TEXT="$TEXT"
+
+# Cleanup Hebrew: Specific fix for "bug" (בַּאג -> בַּג)
+TEXT="${TEXT//בַּאג/בַּג}"
+
 if [ -n "$CUSTOM_EMOJI" ]; then EMOJI="$CUSTOM_EMOJI"; fi
 
 # ============================================================================
@@ -202,19 +207,23 @@ cp "$AUDIO_FILE" "$UPLOAD_FILE"
   SA_FILE="${MYSAY_SA_FILE:-$HOME/.config/mysay/google-sheets-sa.json}"
   SHEET_ID="${MYSAY_SHEET_ID:-}"
   if [ -n "$SHEET_ID" ] && [ -f "$SA_FILE" ]; then
-    python3 - "$SA_FILE" "$SHEET_ID" "$TEXT" "$VOICE_ID" "$EMOJI" "$AUDIO_URL" << 'PYEOF'
+    python3 - "$SA_FILE" "$SHEET_ID" "$ORIGINAL_TEXT" "$TEXT" "$VOICE_ID" "$EMOJI" "$AUDIO_URL" << 'PYEOF'
 import sys, gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timezone
-sa_file, sheet_id, text, voice_id, mood, audio_url = sys.argv[1:7]
+sa_file, sheet_id, original_text, processed_text, voice_id, mood, audio_url = sys.argv[1:8]
 try:
     creds = Credentials.from_service_account_file(sa_file, scopes=['https://www.googleapis.com/auth/spreadsheets'])
     gc = gspread.authorize(creds)
     sh = gc.open_by_key(sheet_id)
     ws = sh.sheet1
-    if ws.row_count == 0 or ws.acell('A1').value is None: ws.append_row(['Timestamp', 'Text', 'Voice ID', 'Mood', 'Audio URL', 'Rating', 'Notes'])
-    ws.append_row([datetime.now(timezone.utc).isoformat(), text, voice_id, mood, audio_url, '', ''])
-except: pass
+    if ws.row_count == 0 or ws.acell('A1').value is None: 
+        ws.append_row(['Timestamp', 'Original Text', 'Processed Text', 'Voice ID', 'Mood', 'Audio URL', 'Rating', 'Notes'])
+    ws.append_row([datetime.now(timezone.utc).isoformat(), original_text, processed_text, voice_id, mood, audio_url, '', ''])
+except Exception as e:
+    # Append error to a local log file for debugging if needed
+    with open("/tmp/mysay_gsheets_error.log", "a") as f:
+        f.write(f"{datetime.now()}: {str(e)}\n")
 PYEOF
   fi
 
