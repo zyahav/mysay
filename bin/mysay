@@ -12,7 +12,6 @@ set -e
 # ============================================================================
 
 # Default Voice IDs (ElevenLabs)
-# These are Zuriel's custom voices - you may need to use your own
 VOICE_DONE="${VOICE_DONE:-4tRn1lSkEn13EVTuqb0g}"       # 🎉 Cheerleader - Task Complete
 VOICE_QUESTION="${VOICE_QUESTION:-YOq2y2Up4RgXP2HyXjE5}" # ❓ Philosopher - Question/Help
 VOICE_START="${VOICE_START:-si0svtk05vPEuvwAW93c}"     # 🚀 Rocket - Starting Work
@@ -22,7 +21,7 @@ VOICE_HI="${VOICE_HI:-Z7RrOqZFTyLpIlzCgfsp}"           # 👋 Friendly - Greetin
 VOICE_HEBREW="${VOICE_HEBREW:-4H1tDNxkPIwJmpnc3x2E}"   # 🇮🇱 Default Hebrew
 VOICE_ENGLISH="${VOICE_ENGLISH:-IdfCM5gzYj8bcGLVUBAH}" # 🇺🇸 Default English
 
-# Emoji mappings for each mood (used by emoji-overlay)
+# Emoji mappings
 EMOJI_DONE="🎉"
 EMOJI_QUESTION="❓"
 EMOJI_START="🚀"
@@ -36,27 +35,30 @@ EMOJI_ENGLISH="🇺🇸"
 VOICE_ID="$VOICE_HEBREW"
 EMOJI="$EMOJI_HEBREW"
 SHOW_EMOJI=true
+WAIT_FOR_REPLY=false
 MODEL_ID="${MODEL_ID:-eleven_v3}"
 
-# Script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Script directory (Follow symlink to find real location)
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ============================================================================
 # LOAD CONFIGURATION
 # ============================================================================
 
-# 1. Try ~/.mysay (simple format)
-if [ -f "$HOME/.mysay" ]; then
-  source "$HOME/.mysay"
-fi
+# 1. Try ~/.mysay
+if [ -f "$HOME/.mysay" ]; then source "$HOME/.mysay"; fi
 
-# 2. Try ~/.config/mysay/config (XDG format)
-if [ -f "$HOME/.config/mysay/config" ]; then
-  source "$HOME/.config/mysay/config"
-fi
+# 2. Try ~/.config/mysay/config
+if [ -f "$HOME/.config/mysay/config" ]; then source "$HOME/.config/mysay/config"; fi
 
-# 3. Try project .env.local
+# 3. Try project .env.local (using resolved path)
 if [ -f "$PROJECT_DIR/.env.local" ]; then
   export $(grep -E '^[A-Z_]+=' "$PROJECT_DIR/.env.local" 2>/dev/null | xargs)
 fi
@@ -64,11 +66,7 @@ fi
 # Validate API key
 if [ -z "$ELEVENLABS_API_KEY" ]; then
   echo "❌ Error: ELEVENLABS_API_KEY not set"
-  echo ""
-  echo "Set it by creating ~/.mysay:"
-  echo "  echo 'ELEVENLABS_API_KEY=sk_...' > ~/.mysay"
-  echo ""
-  echo "Or run: $PROJECT_DIR/install.sh"
+  echo "Run: mysay-setup"
   exit 1
 fi
 
@@ -81,122 +79,51 @@ CUSTOM_EMOJI=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --done|-d)
-      VOICE_ID="$VOICE_DONE"
-      EMOJI="$EMOJI_DONE"
-      shift
-      ;;
-    --question|-q)
-      VOICE_ID="$VOICE_QUESTION"
-      EMOJI="$EMOJI_QUESTION"
-      shift
-      ;;
-    --start|-s)
-      VOICE_ID="$VOICE_START"
-      EMOJI="$EMOJI_START"
-      shift
-      ;;
-    --error|-e)
-      VOICE_ID="$VOICE_ERROR"
-      EMOJI="$EMOJI_ERROR"
-      shift
-      ;;
-    --idea|-i)
-      VOICE_ID="$VOICE_IDEA"
-      EMOJI="$EMOJI_IDEA"
-      shift
-      ;;
-    --hi|-h)
-      VOICE_ID="$VOICE_HI"
-      EMOJI="$EMOJI_HI"
-      shift
-      ;;
-    --en)
-      VOICE_ID="$VOICE_ENGLISH"
-      EMOJI="$EMOJI_ENGLISH"
-      shift
-      ;;
-    --emoji)
-      CUSTOM_EMOJI="$2"
-      shift 2
-      ;;
-    --no-emoji)
-      SHOW_EMOJI=false
-      shift
-      ;;
-    --voice)
-      VOICE_ID="$2"
-      shift 2
-      ;;
+    --done|-d) VOICE_ID="$VOICE_DONE"; EMOJI="$EMOJI_DONE"; shift ;;
+    --question|-q) VOICE_ID="$VOICE_QUESTION"; EMOJI="$EMOJI_QUESTION"; shift ;;
+    --start|-s) VOICE_ID="$VOICE_START"; EMOJI="$EMOJI_START"; shift ;;
+    --error|-e) VOICE_ID="$VOICE_ERROR"; EMOJI="$EMOJI_ERROR"; shift ;;
+    --idea|-i) VOICE_ID="$VOICE_IDEA"; EMOJI="$EMOJI_IDEA"; shift ;;
+    --hi|-h) VOICE_ID="$VOICE_HI"; EMOJI="$EMOJI_HI"; shift ;;
+    --en) VOICE_ID="$VOICE_ENGLISH"; EMOJI="$EMOJI_ENGLISH"; shift ;;
+    --emoji) CUSTOM_EMOJI="$2"; shift 2 ;;
+    --no-emoji) SHOW_EMOJI=false; shift ;;
+    --voice) VOICE_ID="$2"; shift 2 ;;
+    --wait|-w) WAIT_FOR_REPLY=true; shift ;;
     --help)
       cat << 'EOF'
-mysay - ElevenLabs TTS for agent-to-human communication with emoji overlays!
+mysay - ElevenLabs TTS for agent-to-human communication
 
 Usage: mysay [OPTIONS] "text to speak"
 
-Voice/Mood Options:
-  --done, -d       🎉 Cheerleader voice (task complete)
-  --question, -q   ❓ Philosopher voice (need help)
-  --start, -s      🚀 Rocket voice (starting work)
-  --error, -e      🐛 Dramatic voice (problem)
-  --idea, -i       💡 Mentor voice (suggestion)
-  --hi, -h         👋 Friendly voice (greeting)
+Options:
+  --wait, -w       Wait for a reply on Telegram
+  --done, -d       🎉 Task complete
+  --question, -q   ❓ Need help
+  --start, -s      🚀 Starting work
+  --error, -e      🐛 Error/problem
+  --idea, -i       💡 Suggestion
+  --hi, -h         👋 Greeting
   --en             🇺🇸 English voice
-  (default)        🇮🇱 Hebrew voice
-
-Emoji Options:
-  --emoji [char]   Override the default emoji (e.g., --emoji ❤️)
-  --no-emoji       Disable emoji screen overlay
-
-Advanced Options:
-  --voice [id]     Use custom ElevenLabs voice ID
-
-Examples:
-  mysay --done "סיימתי את המשימה!"
-  mysay --error "יש בעיה בקוד"
-  mysay --emoji 🔥 "זה חם!"
-  mysay --en --emoji 🚀 "Launching now!"
-  mysay --done "[excited] הַמִּשִׁימָה הוּשְׁלְמָה!"
-
-Environment Variables:
-  ELEVENLABS_API_KEY    Your ElevenLabs API key (required)
-  VOICE_DONE            Voice ID for --done
-  VOICE_ERROR           Voice ID for --error
-  ... etc (see ~/.mysay.example)
-
-Config Files (loaded in order):
-  ~/.mysay
-  ~/.config/mysay/config
-  ./.env.local
+  --emoji [char]   Override emoji
+  --no-emoji       Disable overlay
 EOF
       exit 0
       ;;
-    --version)
-      echo "mysay v1.0.0"
-      exit 0
-      ;;
-    *)
-      TEXT="$1"
-      shift
-      ;;
+    --version) echo "mysay v1.1.0"; exit 0 ;;
+    *) TEXT="$1"; shift ;;
   esac
 done
 
 if [ -z "$TEXT" ]; then
   echo "❌ Error: No text provided"
-  echo "Usage: mysay [--done|--question|--start|--error|--idea|--hi|--en] \"text\""
-  echo "       mysay --help for more options"
   exit 1
 fi
 
-# Apply custom emoji if provided
-if [ -n "$CUSTOM_EMOJI" ]; then
-  EMOJI="$CUSTOM_EMOJI"
-fi
-
+if [ -n "$CUSTOM_EMOJI" ]; then EMOJI="$CUSTOM_EMOJI"; fi
 
 # ============================================================================
-# EMOJI OVERLAY (non-blocking)
+# EMOJI OVERLAY
 # ============================================================================
 
 if [ "$SHOW_EMOJI" = true ] && [ -f "$SCRIPT_DIR/emoji-pop" ]; then
@@ -204,38 +131,11 @@ if [ "$SHOW_EMOJI" = true ] && [ -f "$SCRIPT_DIR/emoji-pop" ]; then
 fi
 
 # ============================================================================
-# GOOGLE SHEETS LOGGING (optional, non-blocking)
-# ============================================================================
-
-SA_FILE="${MYSAY_SA_FILE:-$HOME/.config/mysay/google-sheets-sa.json}"
-SHEET_ID="${MYSAY_SHEET_ID:-}"
-
-if [ -n "$SHEET_ID" ] && [ -f "$SA_FILE" ]; then
-  python3 - "$SA_FILE" "$SHEET_ID" "$TEXT" "$VOICE_ID" "$EMOJI" << 'PYEOF' &
-import sys, gspread
-from google.oauth2.service_account import Credentials
-from datetime import datetime, timezone
-sa_file, sheet_id, text, voice_id, mood = sys.argv[1:6]
-try:
-    creds = Credentials.from_service_account_file(sa_file, scopes=['https://www.googleapis.com/auth/spreadsheets'])
-    gc = gspread.authorize(creds)
-    sh = gc.open_by_key(sheet_id)
-    ws = sh.sheet1
-    if ws.row_count == 0 or ws.acell('A1').value is None:
-        ws.append_row(['Timestamp', 'Text', 'Voice ID', 'Mood', 'Audio URL', 'Rating', 'Notes'])
-    ws.append_row([datetime.now(timezone.utc).isoformat(), text, voice_id, mood, '', '', ''])
-except Exception:
-    pass  # Silent fail - don't block TTS
-PYEOF
-fi
-
-# ============================================================================
-# TEXT-TO-SPEECH (ElevenLabs)
+# TEXT-TO-SPEECH
 # ============================================================================
 
 AUDIO_FILE="/tmp/mysay_$(date +%s).mp3"
 
-# Call ElevenLabs API
 HTTP_CODE=$(curl -s -w "%{http_code}" \
   "https://api.elevenlabs.io/v1/text-to-speech/$VOICE_ID" \
   -H "xi-api-key: $ELEVENLABS_API_KEY" \
@@ -247,31 +147,97 @@ HTTP_CODE=$(curl -s -w "%{http_code}" \
   }" \
   --output "$AUDIO_FILE")
 
-# Check response
 if [ "$HTTP_CODE" != "200" ]; then
   echo "❌ Error: ElevenLabs API returned HTTP $HTTP_CODE"
-  cat "$AUDIO_FILE" 2>/dev/null  # Show error message
+  cat "$AUDIO_FILE" 2>/dev/null
   rm -f "$AUDIO_FILE"
   exit 1
 fi
 
-# Play audio
+# ============================================================================
+# TELEGRAM & R2 (Background)
+# ============================================================================
+
+# Copy for background tasks
+UPLOAD_FILE="/tmp/mysay_upload_$(date +%s).mp3"
+cp "$AUDIO_FILE" "$UPLOAD_FILE"
+
+(
+  # 1. Telegram Send (Async)
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+    curl -s -F chat_id="$TELEGRAM_CHAT_ID" \
+         -F voice="@$UPLOAD_FILE" \
+         -F caption="$TEXT" \
+         "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendVoice" >/dev/null
+  fi
+
+  # 2. R2 Upload (Optional)
+  AUDIO_URL=""
+  if [ -n "$MYSAY_R2_ACCOUNT_ID" ] && [ -n "$MYSAY_R2_ACCESS_KEY_ID" ]; then
+    AUDIO_URL=$(python3 - "$MYSAY_R2_ACCOUNT_ID" "$MYSAY_R2_ACCESS_KEY_ID" "$MYSAY_R2_SECRET_ACCESS_KEY" "$MYSAY_R2_BUCKET_NAME" "$MYSAY_R2_PUBLIC_URL" "$UPLOAD_FILE" "$EMOJI" << 'PYEOF'
+import sys, boto3, os, hashlib
+from datetime import datetime
+account_id, access_key, secret_key, bucket_name, public_url, file_path, mood = sys.argv[1:8]
+try:
+    s3 = boto3.client('s3', endpoint_url=f'https://{account_id}.r2.cloudflarestorage.com', aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+    timestamp = datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
+    with open(file_path, "rb") as f: file_hash = hashlib.md5(f.read()).hexdigest()[:6]
+    filename = f"{timestamp}_{file_hash}.mp3"
+    s3.upload_file(file_path, bucket_name, filename)
+    print(f"{public_url.rstrip('/')}/{filename}" if public_url else f"https://{bucket_name}.r2.dev/{filename}")
+except: pass
+PYEOF
+    )
+  fi
+
+  # 3. Google Sheets
+  SA_FILE="${MYSAY_SA_FILE:-$HOME/.config/mysay/google-sheets-sa.json}"
+  SHEET_ID="${MYSAY_SHEET_ID:-}"
+  if [ -n "$SHEET_ID" ] && [ -f "$SA_FILE" ]; then
+    python3 - "$SA_FILE" "$SHEET_ID" "$TEXT" "$VOICE_ID" "$EMOJI" "$AUDIO_URL" << 'PYEOF'
+import sys, gspread
+from google.oauth2.service_account import Credentials
+from datetime import datetime, timezone
+sa_file, sheet_id, text, voice_id, mood, audio_url = sys.argv[1:7]
+try:
+    creds = Credentials.from_service_account_file(sa_file, scopes=['https://www.googleapis.com/auth/spreadsheets'])
+    gc = gspread.authorize(creds)
+    sh = gc.open_by_key(sheet_id)
+    ws = sh.sheet1
+    if ws.row_count == 0 or ws.acell('A1').value is None: ws.append_row(['Timestamp', 'Text', 'Voice ID', 'Mood', 'Audio URL', 'Rating', 'Notes'])
+    ws.append_row([datetime.now(timezone.utc).isoformat(), text, voice_id, mood, audio_url, '', ''])
+except: pass
+PYEOF
+  fi
+
+  rm -f "$UPLOAD_FILE"
+) &
+
+# ============================================================================
+# PLAY AUDIO
+# ============================================================================
+
 if [ -s "$AUDIO_FILE" ]; then
-  # macOS
-  if command -v afplay &>/dev/null; then
-    afplay "$AUDIO_FILE"
-  # Linux
-  elif command -v mpv &>/dev/null; then
-    mpv --no-video "$AUDIO_FILE" 2>/dev/null
-  elif command -v aplay &>/dev/null; then
-    aplay "$AUDIO_FILE" 2>/dev/null
-  else
-    echo "❌ Error: No audio player found (tried: afplay, mpv, aplay)"
-    exit 1
+  if command -v afplay &>/dev/null; then afplay "$AUDIO_FILE"
+  elif command -v mpv &>/dev/null; then mpv --no-video "$AUDIO_FILE" 2>/dev/null
+  elif command -v aplay &>/dev/null; then aplay "$AUDIO_FILE" 2>/dev/null
   fi
   rm -f "$AUDIO_FILE"
-else
-  echo "❌ Error: Failed to generate audio"
-  rm -f "$AUDIO_FILE"
-  exit 1
+fi
+
+# ============================================================================
+# WAIT FOR REPLY
+# ============================================================================
+
+if [ "$WAIT_FOR_REPLY" = true ]; then
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+    # Use the Node.js script to poll for reply
+    if command -v node &>/dev/null; then
+      node "$SCRIPT_DIR/mysay-wait.js" "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_CHAT_ID"
+    else
+      echo "⚠️  Node.js not found. Cannot wait for reply."
+    fi
+  else
+    echo "⚠️  Telegram not configured. Cannot wait for reply."
+  fi
 fi

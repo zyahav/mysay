@@ -1,0 +1,270 @@
+#!/bin/bash
+# mysay-setup - Interactive setup wizard for mysay
+# Self-demonstrating: uses mysay itself during setup!
+#
+# Usage: mysay-setup
+#        mysay --setup (alias)
+
+set -e
+
+# Colors for pretty output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+CONFIG_DIR="$HOME/.config/mysay"
+CONFIG_FILE="$CONFIG_DIR/config"
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+print_header() {
+  echo ""
+  echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${BOLD}$1${NC}"
+  echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+print_step() {
+  echo ""
+  echo -e "${BLUE}▶ ${BOLD}$1${NC}"
+}
+
+print_success() {
+  echo -e "${GREEN}✅ $1${NC}"
+}
+
+print_warning() {
+  echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+print_error() {
+  echo -e "${RED}❌ $1${NC}"
+}
+
+print_info() {
+  echo -e "${CYAN}ℹ️  $1${NC}"
+}
+
+# Check if mysay can speak (has valid API key and audio works)
+can_speak() {
+  [ -n "$ELEVENLABS_API_KEY" ] && command -v afplay &>/dev/null || command -v mpv &>/dev/null
+}
+
+# Speak using mysay if possible
+speak() {
+  local mood="$1"
+  local text="$2"
+  if can_speak && [ -f "$SCRIPT_DIR/mysay" ]; then
+    "$SCRIPT_DIR/mysay" $mood "$text" 2>/dev/null || true
+  fi
+}
+
+# ============================================================================
+# MAIN SETUP FLOW
+# ============================================================================
+
+clear
+echo ""
+echo -e "${CYAN}"
+cat << 'EOF'
+  ███╗   ███╗██╗   ██╗███████╗ █████╗ ██╗   ██╗
+  ████╗ ████║╚██╗ ██╔╝██╔════╝██╔══██╗╚██╗ ██╔╝
+  ██╔████╔██║ ╚████╔╝ ███████╗███████║ ╚████╔╝ 
+  ██║╚██╔╝██║  ╚██╔╝  ╚════██║██╔══██║  ╚██╔╝  
+  ██║ ╚═╝ ██║   ██║   ███████║██║  ██║   ██║   
+  ╚═╝     ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝   
+EOF
+echo -e "${NC}"
+echo -e "${BOLD}        Voice Communication for AI Agents${NC}"
+echo -e "        Interactive Setup Wizard v1.0"
+echo ""
+
+# Create config dir if needed
+mkdir -p "$CONFIG_DIR"
+touch "$CONFIG_FILE"
+
+# Load existing config to show defaults
+if [ -f "$CONFIG_FILE" ]; then
+  source "$CONFIG_FILE"
+fi
+
+# ----------------------------------------------------------------------------
+# 1. Dependency Check
+# ----------------------------------------------------------------------------
+print_header "1. Checking System Dependencies"
+
+MISSING_DEPS=0
+
+# Check curl
+if command -v curl &>/dev/null; then
+  print_success "curl found"
+else
+  print_error "curl is missing"
+  MISSING_DEPS=1
+fi
+
+# Check audio player
+if command -v afplay &>/dev/null; then
+  print_success "Audio player (afplay) found"
+elif command -v mpv &>/dev/null; then
+  print_success "Audio player (mpv) found"
+else
+  print_warning "No command-line audio player found (afplay/mpv)"
+  echo "   You might need to install 'mpv' if on Linux."
+fi
+
+# Check Python (for R2/Sheets)
+if command -v python3 &>/dev/null; then
+  print_success "Python 3 found (required for R2/Sheets)"
+  
+  # Check python modules
+  if python3 -c "import boto3" 2>/dev/null; then
+    print_success "Python module 'boto3' found (for R2)"
+  else
+    print_warning "Python module 'boto3' missing. R2 upload won't work."
+    echo "   Install with: pip3 install boto3"
+  fi
+else
+  print_warning "Python 3 missing. R2 upload and Sheets logging won't work."
+fi
+
+echo ""
+read -p "Press Enter to continue..."
+
+# ----------------------------------------------------------------------------
+# 2. ElevenLabs Setup
+# ----------------------------------------------------------------------------
+print_header "2. ElevenLabs Configuration (Required)"
+
+echo "You need an API key from https://elevenlabs.io"
+echo ""
+
+if [ -n "$ELEVENLABS_API_KEY" ]; then
+  print_info "Current Key: ${ELEVENLABS_API_KEY:0:5}****************"
+  read -p "Keep this key? [Y/n] " keep_key
+  keep_key=${keep_key:-Y}
+else
+  keep_key="n"
+fi
+
+if [[ "$keep_key" =~ ^[Nn] ]]; then
+  read -p "Enter ElevenLabs API Key: " NEW_KEY
+  if [ -n "$NEW_KEY" ]; then
+    ELEVENLABS_API_KEY="$NEW_KEY"
+  fi
+fi
+
+# ----------------------------------------------------------------------------
+# 3. Cloudflare R2 Setup
+# ----------------------------------------------------------------------------
+print_header "3. Cloudflare R2 Storage (Optional)"
+
+echo "This allows mysay to save audio files to the cloud and log public URLs."
+echo "Leave blank to skip."
+echo ""
+
+# Account ID
+if [ -n "$MYSAY_R2_ACCOUNT_ID" ]; then
+  print_info "Current Account ID: $MYSAY_R2_ACCOUNT_ID"
+fi
+read -p "R2 Account ID: " input_val
+MYSAY_R2_ACCOUNT_ID="${input_val:-$MYSAY_R2_ACCOUNT_ID}"
+
+# Access Key ID
+if [ -n "$MYSAY_R2_ACCESS_KEY_ID" ]; then
+  print_info "Current Access Key ID: ${MYSAY_R2_ACCESS_KEY_ID:0:4}****"
+fi
+read -p "R2 Access Key ID: " input_val
+MYSAY_R2_ACCESS_KEY_ID="${input_val:-$MYSAY_R2_ACCESS_KEY_ID}"
+
+# Secret Access Key
+if [ -n "$MYSAY_R2_SECRET_ACCESS_KEY" ]; then
+  print_info "Current Secret Key: ****"
+fi
+read -s -p "R2 Secret Access Key: " input_val
+echo ""
+MYSAY_R2_SECRET_ACCESS_KEY="${input_val:-$MYSAY_R2_SECRET_ACCESS_KEY}"
+
+# Bucket Name
+read -p "R2 Bucket Name [${MYSAY_R2_BUCKET_NAME:-mysay-audio}]: " input_val
+MYSAY_R2_BUCKET_NAME="${input_val:-${MYSAY_R2_BUCKET_NAME:-mysay-audio}}"
+
+# Public URL
+echo "The public base URL for your bucket (e.g. https://audio.example.com)"
+read -p "Public URL Base: " input_val
+MYSAY_R2_PUBLIC_URL="${input_val:-$MYSAY_R2_PUBLIC_URL}"
+
+# ----------------------------------------------------------------------------
+# 4. Save Configuration
+# ----------------------------------------------------------------------------
+print_header "4. Saving Configuration"
+
+# Backup existing
+if [ -f "$CONFIG_FILE" ]; then
+  cp "$CONFIG_FILE" "$CONFIG_FILE.bak"
+  print_info "Backed up old config to $CONFIG_FILE.bak"
+fi
+
+cat > "$CONFIG_FILE" << EOF
+# mysay Configuration
+# Generated by mysay-setup on $(date)
+
+# ============================================================================
+# Core
+# ============================================================================
+ELEVENLABS_API_KEY="$ELEVENLABS_API_KEY"
+MODEL_ID="${MODEL_ID:-eleven_v3}"
+
+# ============================================================================
+# Cloudflare R2 Storage
+# ============================================================================
+MYSAY_R2_ACCOUNT_ID="$MYSAY_R2_ACCOUNT_ID"
+MYSAY_R2_ACCESS_KEY_ID="$MYSAY_R2_ACCESS_KEY_ID"
+MYSAY_R2_SECRET_ACCESS_KEY="$MYSAY_R2_SECRET_ACCESS_KEY"
+MYSAY_R2_BUCKET_NAME="$MYSAY_R2_BUCKET_NAME"
+MYSAY_R2_PUBLIC_URL="$MYSAY_R2_PUBLIC_URL"
+
+# ============================================================================
+# Google Sheets
+# ============================================================================
+MYSAY_SHEET_ID="${MYSAY_SHEET_ID}"
+MYSAY_SA_FILE="${MYSAY_SA_FILE}"
+
+# ============================================================================
+# Voice Personalities (Uncomment to override defaults)
+# ============================================================================
+# VOICE_DONE="4tRn1lSkEn13EVTuqb0g"
+# VOICE_ERROR="flHkNRp1BlvT73UL6gyz"
+# VOICE_QUESTION="YOq2y2Up4RgXP2HyXjE5"
+# VOICE_START="si0svtk05vPEuvwAW93c"
+# VOICE_IDEA="weA4Q36twV5kwSaTEL0Q"
+# VOICE_HI="Z7RrOqZFTyLpIlzCgfsp"
+EOF
+
+print_success "Configuration saved to $CONFIG_FILE"
+
+# ----------------------------------------------------------------------------
+# 5. Final Test
+# ----------------------------------------------------------------------------
+print_header "5. Final Test"
+
+echo "Testing voice generation..."
+if can_speak; then
+  speak --done "Setup complete! I am ready to help you."
+  print_success "Test audio played!"
+else
+  print_error "Cannot play audio. Check API key or audio player."
+fi
+
+echo ""
+echo -e "${GREEN}${BOLD}All done! You can now use 'mysay' command.${NC}"
+echo ""
