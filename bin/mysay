@@ -187,8 +187,6 @@ cp "$AUDIO_FILE" "$UPLOAD_FILE"
         "$UPLOAD_FILE" \
         "$MYSAY_R2_FOLDER")
       
-      echo "DEBUG: Uploading to folder: '$MYSAY_R2_FOLDER'" >&2
-      
       if [ $? -ne 0 ]; then
         echo "⚠️  R2 Upload failed" >&2
         AUDIO_URL=""
