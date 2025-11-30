@@ -60,13 +60,16 @@ if [ -f "$HOME/.config/mysay/config" ]; then source "$HOME/.config/mysay/config"
 
 # 3. Try project .env.local (using resolved path)
 if [ -f "$PROJECT_DIR/.env.local" ]; then
-  export $(grep -E '^[A-Z_]+=' "$PROJECT_DIR/.env.local" 2>/dev/null | xargs)
+  set -a
+  source "$PROJECT_DIR/.env.local"
+  set +a
 fi
 
 # Validate API key
 if [ -z "$ELEVENLABS_API_KEY" ]; then
   echo "❌ Error: ELEVENLABS_API_KEY not set"
   echo "Run: mysay-setup"
+  exit 1
   exit 1
 fi
 
@@ -174,20 +177,27 @@ cp "$AUDIO_FILE" "$UPLOAD_FILE"
   # 2. R2 Upload (Optional)
   AUDIO_URL=""
   if [ -n "$MYSAY_R2_ACCOUNT_ID" ] && [ -n "$MYSAY_R2_ACCESS_KEY_ID" ]; then
-    AUDIO_URL=$(python3 - "$MYSAY_R2_ACCOUNT_ID" "$MYSAY_R2_ACCESS_KEY_ID" "$MYSAY_R2_SECRET_ACCESS_KEY" "$MYSAY_R2_BUCKET_NAME" "$MYSAY_R2_PUBLIC_URL" "$UPLOAD_FILE" "$EMOJI" << 'PYEOF'
-import sys, boto3, os, hashlib
-from datetime import datetime
-account_id, access_key, secret_key, bucket_name, public_url, file_path, mood = sys.argv[1:8]
-try:
-    s3 = boto3.client('s3', endpoint_url=f'https://{account_id}.r2.cloudflarestorage.com', aws_access_key_id=access_key, aws_secret_access_key=secret_key)
-    timestamp = datetime.now().strftime('%Y-%m-%dT%H-%M-%S')
-    with open(file_path, "rb") as f: file_hash = hashlib.md5(f.read()).hexdigest()[:6]
-    filename = f"{timestamp}_{file_hash}.mp3"
-    s3.upload_file(file_path, bucket_name, filename)
-    print(f"{public_url.rstrip('/')}/{filename}" if public_url else f"https://{bucket_name}.r2.dev/{filename}")
-except: pass
-PYEOF
-    )
+    if command -v node &>/dev/null; then
+      AUDIO_URL=$(node "$SCRIPT_DIR/upload-r2.js" \
+        "$MYSAY_R2_ACCOUNT_ID" \
+        "$MYSAY_R2_ACCESS_KEY_ID" \
+        "$MYSAY_R2_SECRET_ACCESS_KEY" \
+        "$MYSAY_R2_BUCKET_NAME" \
+        "$MYSAY_R2_PUBLIC_URL" \
+        "$UPLOAD_FILE" \
+        "$MYSAY_R2_FOLDER")
+      
+      echo "DEBUG: Uploading to folder: '$MYSAY_R2_FOLDER'" >&2
+      
+      if [ $? -ne 0 ]; then
+        echo "⚠️  R2 Upload failed" >&2
+        AUDIO_URL=""
+      else
+        echo "✅ Uploaded to: $AUDIO_URL"
+      fi
+    else
+      echo "⚠️  Node.js not found, skipping R2 upload" >&2
+    fi
   fi
 
   # 3. Google Sheets
