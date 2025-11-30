@@ -1,0 +1,2 @@
+- CRITICAL: Always maintain a connection to Telegram. Use 'mysay --wait' to listen for user commands from Telegram.
+- The user prefers to chat via Telegram. Check for messages frequently.
