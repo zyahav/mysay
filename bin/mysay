@@ -95,21 +95,42 @@ while [[ $# -gt 0 ]]; do
     --wait|-w) WAIT_FOR_REPLY=true; shift ;;
     --help)
       cat << 'EOF'
-mysay - ElevenLabs TTS for agent-to-human communication
+mysay - Voice + Telegram communication for AI agents
+
+Sends your message via:
+  1. Voice (ElevenLabs TTS) — developer hears it
+  2. Telegram — developer sees it on phone
+  3. Emoji overlay — floats on developer's screen
 
 Usage: mysay [OPTIONS] "text to speak"
 
-Options:
-  --wait, -w       Wait for a reply on Telegram
+COMMUNICATION:
+  --wait, -w       Send AND wait for developer's Telegram reply
+                   (Returns the reply text to your script)
+
+MOODS (voice + emoji):
   --done, -d       🎉 Task complete
-  --question, -q   ❓ Need help
+  --question, -q   ❓ Need input (combine with -w to wait for reply)
   --start, -s      🚀 Starting work
   --error, -e      🐛 Error/problem
   --idea, -i       💡 Suggestion
   --hi, -h         👋 Greeting
-  --en             🇺🇸 English voice
+
+LANGUAGE:
+  (default)        🇮🇱 Hebrew
+  --en             🇺🇸 English
+
+OTHER:
   --emoji [char]   Override emoji
   --no-emoji       Disable overlay
+
+EXAMPLES:
+  mysay --done "Finished the task"
+  mysay --question -w "Should I continue?"    # Waits for reply
+  mysay --error "Build failed"
+
+CONFIG: ~/.config/mysay/config
+DOCS:   See AGENT.md for quick start
 EOF
       exit 0
       ;;

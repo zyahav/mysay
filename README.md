@@ -1,6 +1,8 @@
 # 🎙️ mysay
 
-**Voice communication for AI agents** - Let your AI speak to you with different personalities and floating emoji reactions!
+**Voice + Telegram communication for AI agents** - Let your AI speak to you with different personalities and floating emoji reactions!
+
+> **🤖 AI AGENTS: Start with [AGENT.md](AGENT.md) for quick start**
 
 When AI agents work with developers, text responses can be missed. `mysay` uses ElevenLabs TTS to speak important updates aloud, with different voice personalities that instantly tell you what's happening.
 
@@ -8,6 +10,7 @@ When AI agents work with developers, text responses can be missed. `mysay` uses 
 
 - **6 Voice Personalities** - Different voices for different situations
 - **Emoji Overlays** - Zoom-style floating reactions on your screen
+- **Telegram Integration** - Messages sent to your phone + two-way replies
 - **Hebrew + English** - Full support for both languages with proper nikud
 - **Emotion Tags** - `[excited]`, `[whispers]`, `[laughs]` and more
 - **Agent-Ready** - Built for AI agents to communicate with developers
@@ -42,6 +45,9 @@ mysay --question "האם להמשיך?"          # ❓ Thoughtful inquiry
 mysay --start "מתחיל לעבוד!"           # 🚀 Energetic kickoff
 mysay --idea "יש לי רעיון!"             # 💡 Mentor suggestion
 mysay --hi "היי!"                       # 👋 Friendly greeting
+
+# Two-way communication (send + wait for Telegram reply)
+mysay --question -w "Should I continue?"   # Waits for your reply!
 
 # English
 mysay --en "Hello world!"
